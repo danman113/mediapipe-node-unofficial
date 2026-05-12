@@ -26,11 +26,11 @@
     "gl": {"optional": false}
   },
   "license": "Apache-2.0",
-  "homepage": "https://github.com/danman113/mediapipe",
+  "homepage": "https://github.com/danman113/mediapipe-node-unofficial",
   "author": "danman113",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/danman113/mediapipe.git"
+    "url": "git+https://github.com/danman113/mediapipe-node-unofficial.git"
   },
   "files": [
     "LICENSE",
