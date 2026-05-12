@@ -1,0 +1,11 @@
+{
+  "name": "tasks-vision-node-smoke",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Local dev workdir for @mediapipe/tasks-vision-node. Holds the peer deps (gl, canvas) and a refresh-from-bazel-bin copy of the package under local-pkg/. Driven by ../dev_smoke.js.",
+  "dependencies": {
+    "@danman113/mediapipe-node": "file:local-pkg",
+    "canvas": "^2.11.2",
+    "gl": "^8.1.6"
+  }
+}

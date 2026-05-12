@@ -1,0 +1,43 @@
+{
+  "name": "@danman113/mediapipe-node",
+  "version": "0.0.1",
+  "description": "Unofficial Node.js port of MediaPipe Vision Tasks (derived from google/mediapipe)",
+  "main": "tasks-vision-node.cjs",
+  "module": "tasks-vision-node.mjs",
+  "types": "tasks-vision-node.d.ts",
+  "exports": {
+    ".": {
+      "import": "./tasks-vision-node.mjs",
+      "require": "./tasks-vision-node.cjs",
+      "types": "./tasks-vision-node.d.ts"
+    },
+    "./wasm/vision_wasm_internal.js": "./wasm/vision_wasm_internal.js",
+    "./wasm/vision_wasm_internal.wasm": "./wasm/vision_wasm_internal.wasm"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "canvas": "^2.11.0",
+    "gl": "^8.1.6"
+  },
+  "peerDependenciesMeta": {
+    "canvas": {"optional": false},
+    "gl": {"optional": false}
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/danman113/mediapipe",
+  "author": "danman113",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danman113/mediapipe.git"
+  },
+  "files": [
+    "LICENSE",
+    "*.js",
+    "*.mjs",
+    "*.cjs",
+    "*.d.ts",
+    "wasm/"
+  ]
+}

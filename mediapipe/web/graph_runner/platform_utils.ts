@@ -13,9 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Modified from the original MediaPipe source by danman113 (2026):
+// added lazy navigator guard for Node.js compatibility.
+
+// In Node and other non-browser environments `navigator` may be undefined.
+// We resolve it lazily and guard each access so that callers (and module
+// load) don't throw outside the browser.
+function getNavigator(): Navigator | undefined {
+  return typeof navigator !== 'undefined' ? navigator : undefined;
+}
 
 /** Returns whether the underlying rendering engine is WebKit. */
-export function isWebKit(browser = navigator) {
+export function isWebKit(browser: Navigator | undefined = getNavigator()) {
+  if (!browser) return false;
   const userAgent = browser.userAgent;
   // Note that this returns true for Chrome on iOS (which is running WebKit) as
   // it uses "CriOS".
@@ -24,6 +34,8 @@ export function isWebKit(browser = navigator) {
 
 /** Detect if code is running on iOS. */
 export function isIOS() {
+  const browser = getNavigator();
+  if (!browser) return false;
   // Source:
   // https://stackoverflow.com/questions/9038625/detect-if-device-is-ios
   return (
@@ -35,9 +47,10 @@ export function isIOS() {
       'iPhone',
       'iPod',
       // tslint:disable-next-line:deprecation
-    ].includes(navigator.platform) ||
+    ].includes(browser.platform) ||
     // iPad on iOS 13 detection
-    (navigator.userAgent.includes('Mac') &&
+    (browser.userAgent.includes('Mac') &&
+      typeof self !== 'undefined' &&
       'document' in self &&
       'ontouchend' in self.document)
   );
@@ -47,8 +60,10 @@ export function isIOS() {
  * Returns whether the underlying rendering engine supports obtaining a WebGL2
  * context from an OffscreenCanvas.
  */
-export function supportsOffscreenCanvas(browser = navigator) {
+export function supportsOffscreenCanvas(
+    browser: Navigator | undefined = getNavigator()) {
   if (typeof OffscreenCanvas === 'undefined') return false;
+  if (!browser) return false;
   if (isWebKit(browser)) {
     const userAgent = browser.userAgent;
     const match = userAgent.match(/Version\/([\d]+).*Safari/);

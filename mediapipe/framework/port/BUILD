@@ -15,6 +15,7 @@
 # Description:
 #  Port of various libraries and utilities.
 
+load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 licenses(["notice"])
@@ -239,10 +240,22 @@ cc_library(
 # Disabling opencv when defining MEDIAPIPE_DISABLE_OPENCV to 1 in the bazel command.
 # Note that this only applies to a select few calculators/framework components currently.
 config_setting(
-    name = "disable_opencv",
+    name = "disable_opencv_define",
     define_values = {
         "MEDIAPIPE_DISABLE_OPENCV": "1",
     },
+)
+
+# `--define`s do not propagate through Starlark transitions (see
+# `wasm_cc_binary`), so the `disable_opencv_define` config_setting alone
+# cannot reach the wasm sub-configuration. Match Emscripten unconditionally
+# — OpenCV is not built for wasm anyway.
+selects.config_setting_group(
+    name = "disable_opencv",
+    match_any = [
+        ":disable_opencv_define",
+        "//mediapipe:emscripten",
+    ],
 )
 
 # Enable Halide when defining MEDIAPIPE_ENABLE_HALIDE to 1 in bazel command.

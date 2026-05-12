@@ -48,6 +48,8 @@
 #include "mediapipe/calculators/tensor/image_to_tensor_converter_opencv.h"
 #elif MEDIAPIPE_ENABLE_HALIDE
 #include "mediapipe/calculators/tensor/image_to_tensor_converter_frame_buffer.h"
+#else
+#include "mediapipe/calculators/tensor/image_to_tensor_converter_basic_cpu.h"
 #endif
 
 #if !MEDIAPIPE_DISABLE_GPU
@@ -272,9 +274,13 @@ class ImageToTensorNodeImpl
                 cc, GetBorderMode(options_.border_mode()),
                 GetOutputTensorType(/*uses_gpu=*/false, params_)));
 #else
-        ABSL_LOG(FATAL) << "Cannot create image to tensor CPU converter since "
-                           "MEDIAPIPE_DISABLE_OPENCV is defined and "
-                           "MEDIAPIPE_ENABLE_HALIDE is not defined.";
+        // Hand-rolled bilinear converter — used by the wasm Node target,
+        // which has neither OpenCV nor Halide linked in.
+        MP_ASSIGN_OR_RETURN(
+            cpu_converter_,
+            CreateBasicCpuConverter(
+                cc, GetBorderMode(options_.border_mode()),
+                GetOutputTensorType(/*uses_gpu=*/false, params_)));
 #endif  // !MEDIAPIPE_DISABLE_HALIDE
       }
     }

@@ -1,3 +1,5 @@
+// Modified from the original MediaPipe source by danman113 (2026):
+// added Node.js fallback path in GraphRunner constructor (no document/OffscreenCanvas).
 // Placeholder for internal dependency on assertTruthy
 import {supportsOffscreenCanvas} from '../../web/graph_runner/platform_utils';
 import {runScript} from '../../web/graph_runner/run_script_helper';
@@ -113,11 +115,18 @@ export class GraphRunner implements GraphRunnerApi {
       // OffscreenCanvas for GPU processing. Note that we exclude older Safari
       // versions that not support WebGL for OffscreenCanvas.
       this.wasmModule.canvas = new OffscreenCanvas(1, 1);
-    } else {
+    } else if (typeof document !== 'undefined') {
       console.warn(
           'OffscreenCanvas not supported and GraphRunner constructor ' +
           'glCanvas parameter is undefined. Creating backup canvas.');
       this.wasmModule.canvas = document.createElement('canvas');
+    } else {
+      // Non-browser environment (Node.js). Callers must pass an explicit
+      // `glCanvas` (for example a NodeCanvas backed by headless-gl).
+      throw new Error(
+          'GraphRunner: no glCanvas was provided and the current environment ' +
+          'has neither OffscreenCanvas nor document. In Node, construct a ' +
+          'NodeCanvas and pass it as the glCanvas argument.');
     }
   }
 

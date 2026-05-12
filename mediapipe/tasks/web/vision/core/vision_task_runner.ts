@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Modified from the original MediaPipe source by danman113 (2026):
+// added Node.js environment guards to createCanvas().
 
 import {NormalizedRect} from '../../../../framework/formats/rect_pb';
 import {TaskRunner} from '../../../../tasks/web/core/task_runner';
@@ -53,9 +55,12 @@ export class VisionGraphRunner extends GraphRunnerVisionType {}
 function createCanvas(): HTMLCanvasElement | OffscreenCanvas | undefined {
   // Returns an HTML canvas or `undefined` if OffscreenCanvas is fully supported
   // (since the graph runner can initialize its own OffscreenCanvas).
-  return supportsOffscreenCanvas()
-    ? undefined
-    : document.createElement('canvas');
+  if (supportsOffscreenCanvas()) return undefined;
+  if (typeof document !== 'undefined') return document.createElement('canvas');
+  // Non-browser environment (Node.js). The caller is expected to pass an
+  // explicit `options.canvas`; returning `undefined` here lets the
+  // GraphRunner constructor surface a clear error if they didn't.
+  return undefined;
 }
 
 /** Base class for all MediaPipe Vision Tasks. */

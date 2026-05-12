@@ -72,6 +72,8 @@ selects.config_setting_group(
     name = "compute_shader_unavailable",
     match_any = [
         "//mediapipe/gpu:disable_gpu",
+        # Emscripten / WebGL2 → GLES 3.0; no SSBO / compute shaders.
+        "//mediapipe:emscripten",
     ],
 )
 
@@ -1591,7 +1593,9 @@ cc_library(
         "//mediapipe/gpu:disable_gpu": [],
         "//conditions:default": [":image_to_tensor_calculator_gpu_deps"],
     }) + select({
-        "//mediapipe/framework/port:disable_opencv": [],
+        "//mediapipe/framework/port:disable_opencv": [
+            ":image_to_tensor_converter_basic_cpu",
+        ],
         "//conditions:default": [":image_to_tensor_converter_opencv"],
     }) + select({
         "//mediapipe/framework/port:enable_halide": [
@@ -1772,6 +1776,27 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+# Fallback CPU image-to-tensor converter for builds where neither OpenCV
+# nor Halide is available (the @mediapipe/tasks-vision-node wasm build).
+cc_library(
+    name = "image_to_tensor_converter_basic_cpu",
+    srcs = ["image_to_tensor_converter_basic_cpu.cc"],
+    hdrs = ["image_to_tensor_converter_basic_cpu.h"],
+    deps = [
+        ":image_to_tensor_converter",
+        ":image_to_tensor_utils",
+        "//mediapipe/framework:calculator_framework",
+        "//mediapipe/framework/formats:image",
+        "//mediapipe/framework/formats:image_format_cc_proto",
+        "//mediapipe/framework/formats:image_frame",
+        "//mediapipe/framework/formats:tensor",
+        "//mediapipe/framework/port:ret_check",
+        "//mediapipe/framework/port:statusor",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
     ],
 )
 

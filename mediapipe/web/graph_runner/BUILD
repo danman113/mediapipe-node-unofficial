@@ -3,6 +3,28 @@
 load("//mediapipe/framework/port:build_config.bzl", "ts_declaration", "ts_library")
 load("//mediapipe/tasks/web:build_defs.bzl", "jasmine_node_test")
 
+# C++ side of the JS↔WASM bridge for the Node target. Implements the
+# extern "C" exports declared in `wasm_module.d.ts`.
+cc_library(
+    name = "graph_runner_internal_cc",
+    srcs = ["graph_runner_internal.cc"],
+    target_compatible_with = ["@platforms//cpu:wasm32"],
+    visibility = ["//mediapipe/tasks:internal"],
+    alwayslink = True,
+    deps = [
+        "//mediapipe/framework:calculator_cc_proto",
+        "//mediapipe/framework:calculator_framework",
+        "//mediapipe/framework/formats:image",
+        "//mediapipe/framework/formats:image_frame",
+        "//mediapipe/framework/port:parse_text_proto",
+        "//mediapipe/tasks/cc/core:mediapipe_builtin_op_resolver",
+        "//mediapipe/tasks/cc/core:model_resources_cache",
+        "@com_google_absl//absl/log:absl_check",
+        "@com_google_absl//absl/log:absl_log",
+        "@com_google_absl//absl/status",
+    ],
+)
+
 package(default_visibility = [
     "//mediapipe/tasks:internal",
 ])
@@ -87,6 +109,55 @@ ts_library(
     name = "platform_utils",
     srcs = [
         "platform_utils.ts",
+    ],
+)
+
+# Node-only stand-in for `platform_utils`. Aliased into the
+# @mediapipe/tasks-vision-node bundle by its rollup config.
+mediapipe_ts_library(
+    name = "platform_node",
+    srcs = [
+        "platform_node.ts",
+    ],
+    visibility = ["//mediapipe/tasks:internal"],
+)
+
+# Stubs for WebGL2 entry points missing from headless-gl. Mutates the gl
+# context in place so Emscripten's WebGL glue can call them.
+mediapipe_ts_library(
+    name = "node_webgl2_shim",
+    srcs = [
+        "node_webgl2_shim.ts",
+    ],
+    allow_unoptimized_namespaces = True,
+    visibility = ["//mediapipe/tasks:internal"],
+)
+
+# HTMLCanvasElement-like wrapper around headless-gl, used by the Node bundle.
+mediapipe_ts_library(
+    name = "node_canvas",
+    srcs = [
+        "node_canvas.ts",
+    ],
+    allow_unoptimized_namespaces = True,
+    visibility = ["//mediapipe/tasks:internal"],
+    deps = [
+        ":node_webgl2_shim",
+    ],
+)
+
+# fs-backed counterpart to `createMediaPipeLib`.
+mediapipe_ts_library(
+    name = "node_module_loader",
+    srcs = [
+        "node_module_loader.ts",
+    ],
+    allow_unoptimized_namespaces = True,
+    visibility = ["//mediapipe/tasks:internal"],
+    deps = [
+        ":graph_runner_factory_api",
+        ":node_canvas",
+        ":wasm_module_private",
     ],
 )
 

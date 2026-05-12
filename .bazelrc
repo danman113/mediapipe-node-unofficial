@@ -28,6 +28,22 @@ build:linux --host_cxxopt=-std=c++20
 build:linux --copt=-w
 build:linux --define=xnn_enable_avx512amx=false
 
+# Emscripten / WASM (Track B Node target).
+build:wasm --crosstool_top=@emsdk//emscripten_toolchain:everything
+build:wasm --cpu=wasm
+build:wasm --host_crosstool_top=@bazel_tools//tools/cpp:toolchain
+# Set the target platform so `config_setting` rules with constraint
+# `@platforms//cpu:wasm32` match (e.g. //mediapipe:emscripten select
+# branches like gl_context_webgl.cc).
+build:wasm --platforms=//mediapipe:emscripten_platform
+build:wasm --cxxopt=-std=c++20
+build:wasm --copt=-O3
+build:wasm --copt=-msimd128
+build:wasm --define=xnn_enable_avx512amx=false
+build:wasm --define=tflite_with_xnnpack=false
+build:wasm --define=MEDIAPIPE_DISABLE_OPENCV=1
+build:wasm --copt=-DMEDIAPIPE_DISABLE_OPENCV=1
+
 # windows
 build:windows --cxxopt=/std:c++20
 build:windows --host_cxxopt=/std:c++20

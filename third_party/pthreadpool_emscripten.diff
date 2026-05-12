@@ -1,0 +1,12 @@
+--- a/src/pthreads.c	2026-05-06 19:21:51.182418892 -0700
++++ b/src/pthreads.c	2026-05-06 19:21:51.219973864 -0700
+@@ -108,6 +108,9 @@
+   return emscripten_futex_wait((volatile void*)address, value, INFINITY);
+ }
+ 
++static int futex_wake_n(pthreadpool_atomic_uint32_t* address, uint32_t n) {
++  return emscripten_futex_wake((volatile void*)address, n);
++}
+ static int futex_wake_all(pthreadpool_atomic_uint32_t* address) {
+   return emscripten_futex_wake((volatile void*)address, INT_MAX);
+ }

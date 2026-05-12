@@ -68,6 +68,11 @@ http_archive(
     name = "com_github_glog_glog",
     sha256 = "8a83bf982f37bb70825df71a9709fa90ea9f4447fb3c099e1d720a439d88bad6",
     strip_prefix = "glog-0.6.0",
+    patch_args = ["-p1"],
+    patches = [
+        "@//third_party:com_github_glog_glog_emscripten.diff",
+        "@//third_party:com_github_glog_glog_emscripten_utilities.diff",
+    ],
     urls = [
         "https://github.com/google/glog/archive/v0.6.0.tar.gz",
     ],
@@ -249,6 +254,10 @@ http_archive(
     # `curl -L <url> | shasum -a 256`
     sha256 = "d5a78b017839ee0474e6aef6e21742b03f641b260f29faf9538a0a6b8fae0704",
     strip_prefix = "pthreadpool-995229919303dd98c0f1b3b585b54527067ef893",
+    patch_args = ["-p1"],
+    patches = [
+        "@//third_party:pthreadpool_emscripten.diff",
+    ],
     urls = ["https://github.com/google/pthreadpool/archive/995229919303dd98c0f1b3b585b54527067ef893.zip"],
 )
 
@@ -809,3 +818,24 @@ http_archive(
     strip_prefix = "curl-8.10.1",
     url = "https://curl.haxx.se/download/curl-8.10.1.tar.gz",
 )
+
+
+# Emscripten toolchain — Track B (Node WASM build).
+http_archive(
+    name = "emsdk",
+    sha256 = "4f4ba50bd09e2fa5eebbfa12d0626cb7f875174ffda88b6484a1277769a07189",
+    strip_prefix = "emsdk-3.1.74/bazel",
+    url = "https://github.com/emscripten-core/emsdk/archive/refs/tags/3.1.74.tar.gz",
+)
+
+load("@emsdk//:deps.bzl", emsdk_deps = "deps")
+
+emsdk_deps()
+
+load("@emsdk//:emscripten_deps.bzl", emscripten_deps = "emscripten_deps")
+
+emscripten_deps()
+
+load("@emsdk//:toolchains.bzl", "register_emscripten_toolchains")
+
+register_emscripten_toolchains()
