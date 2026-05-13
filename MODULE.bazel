@@ -8,11 +8,7 @@ single_version_override(
 )
 
 bazel_dep(name = "rules_cc", version = "0.2.9")
-bazel_dep(name = "rules_java", version = "7.10.0")
-single_version_override(
-    module_name = "rules_java",
-    version = "7.10.0",
-)
+bazel_dep(name = "rules_java", version = "7.12.4")
 
 bazel_dep(name = "rules_kotlin", version = "1.9.6")
 bazel_dep(name = "rules_shell", version = "0.4.1")
@@ -20,6 +16,8 @@ bazel_dep(name = "rules_pkg", version = "1.0.1")
 bazel_dep(name = "aspect_rules_jasmine", version = "2.0.4")
 bazel_dep(name = "aspect_rules_js", version = "2.7.0")
 bazel_dep(name = "aspect_bazel_lib", version = "2.21.2")
+bazel_dep(name = "tar.bzl", version = "0.5.1")
+bazel_dep(name = "aspect_tools_telemetry", version = "0.2.8")
 bazel_dep(name = "aspect_rules_rollup", version = "2.0.0")
 bazel_dep(name = "aspect_rules_ts", version = "3.7.0")
 bazel_dep(name = "rules_proto_grpc_js", version = "5.8.0")
@@ -67,6 +65,9 @@ npm.npm_translate_lock(
     pnpm_lock = "//:pnpm-lock.yaml",
 )
 use_repo(npm, "npm")
+
+tel = use_extension("@aspect_tools_telemetry//:extension.bzl", "telemetry")
+use_repo(tel, "aspect_tools_telemetry_report")
 
 rules_ts_ext = use_extension("@aspect_rules_ts//ts:extensions.bzl", "ext")
 rules_ts_ext.deps(

@@ -6,9 +6,8 @@
 # runs it under Node via the TS infrastructure put in place during
 # Stage 1 (headless-gl, node-canvas, fs-backed loader).
 
-load("@build_bazel_rules_nodejs//:index.bzl", "pkg_npm")
-load("@npm//@bazel/rollup:index.bzl", "rollup_bundle")
-load("//mediapipe/framework/port:build_config.bzl", "mediapipe_ts_library")
+load("//mediapipe/framework/port:build_config.bzl", "ts_library")
+load("//mediapipe/tasks/web:build_defs.bzl", "pkg_npm", "rollup_bundle")
 load(
     "//mediapipe/framework/tool:emscripten_cc_binary.bzl",
     "emscripten_cc_binary",
@@ -55,7 +54,7 @@ VISION_NODE_LIBS = [
     "//mediapipe/web/graph_runner:platform_node",
 ]
 
-mediapipe_ts_library(
+ts_library(
     name = "vision_node_lib",
     srcs = [
         "fileset_resolver_node.ts",
@@ -76,11 +75,10 @@ rollup_bundle(
     sourcemap = "true",
     deps = [
         ":vision_node_lib",
-        "@npm//@rollup/plugin-alias",
-        "@npm//@rollup/plugin-commonjs",
-        "@npm//@rollup/plugin-node-resolve",
-        "@npm//@rollup/plugin-terser",
-        "@npm//google-protobuf",
+        "//:node_modules/@rollup/plugin-commonjs",
+        "//:node_modules/@rollup/plugin-node-resolve",
+        "//:node_modules/@rollup/plugin-terser",
+        "//:node_modules/google-protobuf",
     ],
 )
 
@@ -93,11 +91,10 @@ rollup_bundle(
     sourcemap = "true",
     deps = [
         ":vision_node_lib",
-        "@npm//@rollup/plugin-alias",
-        "@npm//@rollup/plugin-commonjs",
-        "@npm//@rollup/plugin-node-resolve",
-        "@npm//@rollup/plugin-terser",
-        "@npm//google-protobuf",
+        "//:node_modules/@rollup/plugin-commonjs",
+        "//:node_modules/@rollup/plugin-node-resolve",
+        "//:node_modules/@rollup/plugin-terser",
+        "//:node_modules/google-protobuf",
     ],
 )
 
@@ -126,12 +123,8 @@ genrule(
 
 pkg_npm(
     name = "vision_node_pkg",
-    package_name = "@danman113/mediapipe-node",
-    srcs = [
-        "README.md",
-        "package.json",
-    ],
-    tgz = "vision_node_pkg.tgz",
+    package_json = "package.json",
+    srcs = ["README.md"],
     deps = [
         ":vision_node_sources",
         ":vision_wasm_internal_files",

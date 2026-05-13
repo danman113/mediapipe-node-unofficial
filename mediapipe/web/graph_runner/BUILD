@@ -114,7 +114,7 @@ ts_library(
 
 # Node-only stand-in for `platform_utils`. Aliased into the
 # @mediapipe/tasks-vision-node bundle by its rollup config.
-mediapipe_ts_library(
+ts_library(
     name = "platform_node",
     srcs = [
         "platform_node.ts",
@@ -124,7 +124,7 @@ mediapipe_ts_library(
 
 # Stubs for WebGL2 entry points missing from headless-gl. Mutates the gl
 # context in place so Emscripten's WebGL glue can call them.
-mediapipe_ts_library(
+ts_library(
     name = "node_webgl2_shim",
     srcs = [
         "node_webgl2_shim.ts",
@@ -134,7 +134,7 @@ mediapipe_ts_library(
 )
 
 # HTMLCanvasElement-like wrapper around headless-gl, used by the Node bundle.
-mediapipe_ts_library(
+ts_library(
     name = "node_canvas",
     srcs = [
         "node_canvas.ts",
@@ -147,7 +147,7 @@ mediapipe_ts_library(
 )
 
 # fs-backed counterpart to `createMediaPipeLib`.
-mediapipe_ts_library(
+ts_library(
     name = "node_module_loader",
     srcs = [
         "node_module_loader.ts",
