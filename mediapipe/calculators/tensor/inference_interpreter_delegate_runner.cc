@@ -287,11 +287,26 @@ CreateInferenceInterpreterDelegateRunner(
   if (delegate) {
     interpreter_builder.AddDelegate(delegate.get());
   }
-#if defined(__EMSCRIPTEN__)
+  // Clamp to 1 thread under Emscripten only when pthreads isn't compiled in.
+  // Without `-pthread` the interpreter can't spawn workers and forcing >1
+  // would assert later. When the wasm is built with USE_PTHREADS=1
+  // (`@danman113/mediapipe-node` Tier 10), `__EMSCRIPTEN_PTHREADS__` is
+  // defined and we honor `interpreter_num_threads` like a native build.
+  //
+  // The proto default for `cpu_num_thread` is -1, which TFLite's
+  // InterpreterBuilder treats as 1 (not auto-detect). Since the web/Node
+  // API doesn't expose `xnnpack.num_threads` today, callers can't override.
+  // Pick 4 — same upper bound as `GetCpuDefaultNumThreads()` and matches
+  // what Android/iOS hit by default.
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
   interpreter_builder.SetNumThreads(1);
 #else
-  interpreter_builder.SetNumThreads(interpreter_num_threads);
-#endif  // __EMSCRIPTEN__
+  int actual_num_threads = interpreter_num_threads;
+#if defined(__EMSCRIPTEN_PTHREADS__)
+  if (actual_num_threads <= 0) actual_num_threads = 4;
+#endif
+  interpreter_builder.SetNumThreads(actual_num_threads);
+#endif  // __EMSCRIPTEN__ && !__EMSCRIPTEN_PTHREADS__
   std::unique_ptr<Interpreter> interpreter;
   RET_CHECK_EQ(interpreter_builder(&interpreter), kTfLiteOk);
   RET_CHECK(interpreter);

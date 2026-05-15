@@ -55,6 +55,9 @@ function parseArgs(argv) {
     model: DEFAULT_MODEL,
     image: DEFAULT_IMAGE,
     test: 'smoke',   // 'smoke' | 'perf'
+    relaxedSimd: false,
+    lto: false,
+    minimalRuntime: false,
     // Extra args forwarded verbatim to the test script (e.g. --runs=200).
     testArgs: [],
   };
@@ -67,6 +70,9 @@ function parseArgs(argv) {
     else if (arg.startsWith('--model=')) opts.model = arg.slice(8);
     else if (arg.startsWith('--image=')) opts.image = arg.slice(8);
     else if (arg.startsWith('--test=')) opts.test = arg.slice(7);
+    else if (arg === '--relaxed-simd') opts.relaxedSimd = true;
+    else if (arg === '--lto') opts.lto = true;
+    else if (arg === '--minimal-runtime') opts.minimalRuntime = true;
     else if (arg === '-h' || arg === '--help') {
       console.log(
           'Usage: node dev_smoke.js [--no-build] [--no-install] ' +
@@ -163,12 +169,30 @@ function main() {
     //   toolchain flag_set).
     // These are forwarded through the wasm_cc_binary transition (compilation_mode
     // is inherited; features is explicitly forwarded by _wasm_transition_impl).
-    run('bazel', [
+    const bazelArgs = [
       'build',
       '--compilation_mode=opt',
       '--features=optimized_for_speed',
-      opts.target,
-    ], REPO_ROOT, {keepGoing: opts.keepGoing});
+    ];
+    // --features=wasm_relaxed_simd: adds `-msimd128 -mrelaxed-simd` to all
+    // compile + link actions. XNNPack has relaxed-simd kernels for FMA.
+    // Requires the llvm backend (which the wasm transition already sets).
+    if (opts.relaxedSimd) bazelArgs.push('--features=wasm_relaxed_simd');
+    // -flto: link-time optimization. Forwarded by the wasm_cc_binary transition's
+    // `linkopt` forward. NB: only affects the binary's own link step;
+    // transitive C++ deps are compiled without LTO bitcode unless we add a
+    // toolchain feature (not implemented).
+    if (opts.lto) {
+      bazelArgs.push('--linkopt=-flto');
+      bazelArgs.push('--copt=-flto');
+    }
+    // -sMINIMAL_RUNTIME=2: strips Emscripten's startup/runtime, shrinks the JS
+    // glue. Only affects link.
+    if (opts.minimalRuntime) {
+      bazelArgs.push('--linkopt=-sMINIMAL_RUNTIME=2');
+    }
+    bazelArgs.push(opts.target);
+    run('bazel', bazelArgs, REPO_ROOT, {keepGoing: opts.keepGoing});
   }
 
   step('refresh local-pkg');
@@ -194,8 +218,12 @@ function main() {
   const testArgv = opts.test === 'perf'
       ? [`--model=${modelPath}`, `--image=${imagePath}`, ...opts.testArgs]
       : [modelPath, imagePath, ...opts.testArgs];
-  run('node', [testScript, ...testArgv], opts.workdir,
-      {keepGoing: opts.keepGoing});
+  // Node 20 hides relaxed-simd behind a V8 flag. Newer Node (22+) has it on
+  // by default; the flag is a no-op then.
+  const nodeArgs = opts.relaxedSimd
+      ? ['--experimental-wasm-relaxed-simd', testScript, ...testArgv]
+      : [testScript, ...testArgv];
+  run('node', nodeArgs, opts.workdir, {keepGoing: opts.keepGoing});
 }
 
 main();

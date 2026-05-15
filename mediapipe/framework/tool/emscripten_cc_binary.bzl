@@ -24,11 +24,16 @@ _DEFAULT_LINKOPTS = [
     "-sEXPORTED_RUNTIME_METHODS=GL,ccall,cwrap,FS_createDataFile,FS_unlink,HEAPU8,HEAPU32,HEAPF32,HEAPF64,stringToNewUTF8",
     # Allow our extern "C" exports.
     "-sEXPORTED_FUNCTIONS=_malloc,_free",
-    # Force single-threaded link. pthreadpool's BUILD propagates `-pthread`
-    # which puts wasm-ld in shared-memory mode; mediapipe core was compiled
-    # without atomics, so the link rejects mixing the two.
-    "-sUSE_PTHREADS=0",
-    "-sSHARED_MEMORY=0",
+    # Threads ON. Combined with `threads = "emscripten"` on wasm_cc_binary
+    # below this propagates `-pthread` to every transitive compile + link
+    # action via the use_pthreads toolchain feature, so the entire static
+    # link agrees on the atomics ABI. PTHREAD_POOL_SIZE matches the upper
+    # bound of GetCpuDefaultNumThreads(); XNNPack self-clamps to fewer.
+    "-sUSE_PTHREADS=1",
+    "-sPTHREAD_POOL_SIZE=4",
+    # Don't dynamically resize the wasm memory mid-run from a thread; it
+    # bombs out with multi-thread access in some emsdk versions and we
+    # already pre-allocate 256MB above which is enough for hand_landmarker.
     "-Wno-pthreads-mem-growth",
     # absl's mutex deadlock detector calls __builtin_return_address /
     # GetStackTrace during graph initialization. Without the offset
@@ -87,9 +92,24 @@ def emscripten_cc_binary(
         # binary's own srcs.
         simd = True,
         backend = "llvm",
+        # threads="emscripten" activates the use_pthreads toolchain feature
+        # which appends `-pthread` to every transitive compile + link, so
+        # mediapipe core, XNNPack, TFLite, abseil, etc. all get atomics
+        # support. Without this the link rejects pthread-using objects mixed
+        # with non-atomics objects.
+        threads = "emscripten",
         outputs = [
             name + ".js",
             name + ".wasm",
         ],
         visibility = kwargs.get("visibility"),
     )
+
+# Note on relaxed-SIMD: enabling the toolchain feature `wasm_relaxed_simd`
+# adds `-msimd128 -mrelaxed-simd` to ALL transitive compile + link actions
+# (the requires-llvm_backend feature in the emsdk toolchain). XNNPack's
+# relaxed-SIMD kernels gain ~10% over base SIMD. Activated by callers via
+# `--features=wasm_relaxed_simd` on the bazel command line (dev_smoke.js
+# wires this in behind a `--relaxed-simd` flag) so the default package stays
+# Node 18 / older-Chrome compatible. The Node runtime currently needs
+# `--experimental-wasm-relaxed-simd` on Node 20; Node 22+ has it stable.

@@ -30,11 +30,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {createCanvas, loadImage} = require('canvas');
+const mp = require('@danman113/mediapipe-node');
 const {
   FilesetResolver,
   createHandLandmarker,
   decodeImageBuffer,
-} = require('@danman113/mediapipe-node');
+} = mp;
 
 // ─── Hand skeleton ───────────────────────────────────────────────────────────
 
@@ -92,6 +93,7 @@ function parseArgs(argv) {
     json: null,
     saveFrames: null,
     saveLandmarks: null,
+    profile: false,
   };
   for (const arg of argv) {
     if (arg.startsWith('--model=')) opts.model = arg.slice(8);
@@ -105,6 +107,7 @@ function parseArgs(argv) {
     else if (arg.startsWith('--json=')) opts.json = arg.slice(7);
     else if (arg.startsWith('--save-frames=')) opts.saveFrames = arg.slice(14);
     else if (arg.startsWith('--save-landmarks=')) opts.saveLandmarks = arg.slice(17);
+    else if (arg === '--profile') opts.profile = true;
     else if (arg === '-h' || arg === '--help') {
       console.log([
         'Usage: node perf_test.js [options]',
@@ -123,6 +126,9 @@ function parseArgs(argv) {
         '  --save-frames=<dir>     write annotated output frames here (single-worker only)',
         '  --save-landmarks=<path> write per-frame landmark JSON for correctness checks',
         '                          (single-worker only; use as golden baseline to diff)',
+        '  --profile               enable per-frame library timers and dump a phase',
+        '                          breakdown (decode / shim.malloc / shim.heapCopy /',
+        '                          shim.wasmPush / shim.free / detect-other)',
       ].join('\n'));
       process.exit(0);
     } else {
@@ -164,6 +170,44 @@ function stats(timings) {
 
 function mb(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+// ─── Profile dump ────────────────────────────────────────────────────────────
+
+function printProfile() {
+  if (!mp.getProfileStats) {
+    console.log('\n(library missing profile API — rebuild required)');
+    return;
+  }
+  const rows = mp.getProfileStats();
+  if (rows.length === 0) {
+    console.log('\nNo profile samples recorded.');
+    return;
+  }
+  const fmt = (us) => (us / 1000).toFixed(3) + 'ms';
+  const colW = Math.max(20, ...rows.map((r) => r.phase.length));
+  console.log('\nLibrary phase breakdown (per-frame timings):');
+  console.log('─'.repeat(colW + 65));
+  console.log(
+      'phase'.padEnd(colW) + '  ' +
+      'count'.padStart(6) + '  ' +
+      'total'.padStart(10) + '  ' +
+      'mean'.padStart(10) + '  ' +
+      'p50'.padStart(10) + '  ' +
+      'p95'.padStart(10) + '  ' +
+      'max'.padStart(10));
+  console.log('─'.repeat(colW + 65));
+  for (const r of rows) {
+    console.log(
+        r.phase.padEnd(colW) + '  ' +
+        String(r.count).padStart(6) + '  ' +
+        fmt(r.totalMicros).padStart(10) + '  ' +
+        fmt(r.meanMicros).padStart(10) + '  ' +
+        fmt(r.p50Micros).padStart(10) + '  ' +
+        fmt(r.p95Micros).padStart(10) + '  ' +
+        fmt(r.maxMicros).padStart(10));
+  }
+  console.log('─'.repeat(colW + 65));
 }
 
 function printResults(mode, s, wallMs, heapBefore, heapAfter, extraInfo = {}) {
@@ -287,15 +331,22 @@ async function runImageBench(detector, imagePath, imageData, opts, saveLandmarks
   console.log(`\nWarmup (${opts.warmup} frames) …`);
   for (let i = 0; i < opts.warmup; i++) detector.detect(imageData);
 
+  // Reset library profile after warmup so we only measure timed iterations.
+  if (opts.profile && mp.resetProfileStats) mp.resetProfileStats();
+
   console.log(`Measuring (${opts.runs} frames) …`);
   const heapBefore = process.memoryUsage().heapUsed;
   const timings = [];
   const detections = [];
   const wallStart = performance.now();
   for (let i = 0; i < opts.runs; i++) {
+    const tDetect = opts.profile && mp.profileNow ? mp.profileNow() : 0;
     const t0 = performance.now();
     const result = detector.detect(imageData);
     timings.push(performance.now() - t0);
+    if (opts.profile && mp.recordProfilePhase) {
+      mp.recordProfilePhase('detect.total', tDetect);
+    }
     detections.push(result);
   }
   const wallMs = performance.now() - wallStart;
@@ -321,12 +372,20 @@ async function runVideoBench(detector, framePaths, opts, saveFramesDir, saveLand
   const frames = [];
   for (const [i, framePath] of framePaths.entries()) {
     const buf = await readFile(framePath);
-    frames.push({framePath, imageData: await decodeImageBuffer(buf)});
+    const tDecode = opts.profile && mp.profileNow ? mp.profileNow() : 0;
+    const imageData = await decodeImageBuffer(buf);
+    if (opts.profile && mp.recordProfilePhase) {
+      mp.recordProfilePhase('decode', tDecode);
+    }
+    frames.push({framePath, imageData});
     if ((i + 1) % 30 === 0 || i + 1 === framePaths.length) {
       process.stdout.write(`  decoded ${i + 1}/${framePaths.length}\r`);
     }
   }
   process.stdout.write('\n');
+
+  // Reset library profile after decode so the inference loop reports cleanly.
+  if (opts.profile && mp.resetProfileStats) mp.resetProfileStats();
 
   // Phase 2 — timed inference loop (no I/O, no drawing).
   console.log('Running inference …');
@@ -337,9 +396,13 @@ async function runVideoBench(detector, framePaths, opts, saveFramesDir, saveLand
 
   for (const [i, {imageData}] of frames.entries()) {
     const ts = i * (1000 / opts.fps);
+    const tDetect = opts.profile && mp.profileNow ? mp.profileNow() : 0;
     const t0 = performance.now();
     const result = detector.detectForVideo(imageData, ts);
     timings.push(performance.now() - t0);
+    if (opts.profile && mp.recordProfilePhase) {
+      mp.recordProfilePhase('detect.total', tDetect);
+    }
     detections.push(result);
 
     if ((i + 1) % 30 === 0 || i + 1 === framePaths.length) {
@@ -474,6 +537,23 @@ async function runWorkerBench(modelPath, imagePath, framePaths, opts) {
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
 
+  if (opts.profile) {
+    if (mp.setProfileEnabled) {
+      mp.setProfileEnabled(true);
+    } else {
+      console.warn(
+          '--profile requested but library exports no profile API; ' +
+          'rebuild and reinstall.');
+      opts.profile = false;
+    }
+  }
+
+  if (opts.profile && opts.workers > 1) {
+    console.warn(
+        '--profile collects stats from the main process only; worker ' +
+        'sub-processes will not be measured.');
+  }
+
   const modelPath = path.resolve(opts.model);
   if (!fs.existsSync(modelPath)) {
     console.error(`model not found: ${modelPath}`);
@@ -567,6 +647,8 @@ async function main() {
     await writeFile(jsonPath, JSON.stringify(results, null, 2));
     console.log(`results written to ${jsonPath}`);
   }
+
+  if (opts.profile) printProfile();
 }
 
 main().catch((err) => {

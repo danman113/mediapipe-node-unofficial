@@ -370,10 +370,19 @@ EMSCRIPTEN_KEEPALIVE void addRgbaImageToInputStream(const uint8_t* data,
   auto image_frame = std::make_shared<mediapipe::ImageFrame>(
       mediapipe::ImageFormat::SRGBA, width, height,
       mediapipe::ImageFrame::kDefaultAlignmentBoundary);
-  // Pack rows; node-canvas hands us a tightly packed RGBA buffer.
-  for (int y = 0; y < height; ++y) {
-    std::memcpy(image_frame->MutablePixelData() + y * image_frame->WidthStep(),
-                data + y * width_step, width_step);
+  // node-canvas hands us a tightly packed RGBA buffer. When the ImageFrame's
+  // padded WidthStep matches width*4 (true for any width that is a multiple
+  // of `kDefaultAlignmentBoundary / 4` = 4, which covers ~every real video
+  // resolution: 640, 1280, 1920, …), the row-by-row copy degenerates into
+  // one large memcpy. Detect that and skip the loop overhead.
+  if (image_frame->WidthStep() == width_step) {
+    std::memcpy(image_frame->MutablePixelData(), data,
+                static_cast<size_t>(width_step) * height);
+  } else {
+    for (int y = 0; y < height; ++y) {
+      std::memcpy(image_frame->MutablePixelData() + y * image_frame->WidthStep(),
+                  data + y * width_step, width_step);
+    }
   }
   mediapipe::Image image(std::move(image_frame));
   ReportStatus(state.graph().AddPacketToInputStream(

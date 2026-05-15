@@ -881,12 +881,12 @@ cc_library(
         "@org_tensorflow//tensorflow/lite:util",
         "@org_tensorflow//tensorflow/lite/c:common",
         "@org_tensorflow//tensorflow/lite/core:framework",
-    ] + select({
-        "//mediapipe:emscripten": [],
-        "//conditions:default": [
-            "//mediapipe/util:cpu_util",
-        ],
-    }),
+        # cpu_util is needed under emscripten too when pthreads is enabled:
+        # GetCpuDefaultNumThreads() activates the __EMSCRIPTEN_PTHREADS__
+        # branch which calls NumCPUCores(). cpu_util.cc falls back to
+        # sysconf() under emscripten, which the wasm libc provides.
+        "//mediapipe/util:cpu_util",
+    ],
     alwayslink = 1,
 )
 

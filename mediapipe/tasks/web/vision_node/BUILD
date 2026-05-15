@@ -48,6 +48,7 @@ VISION_NODE_LIBS = [
     "//mediapipe/tasks/web/vision/hand_landmarker",
     "//mediapipe/web/graph_runner:node_canvas",
     "//mediapipe/web/graph_runner:node_module_loader",
+    "//mediapipe/web/graph_runner:node_profile",
     # Pulled in for the rollup alias step. Not imported from any .ts in
     # this package; the dep ensures `platform_node.js` is materialized in
     # `bazel-bin` so rollup can resolve `platform_utils` → `platform_node`.

@@ -16,6 +16,7 @@
 
 import {FileLocator, WasmMediaPipeConstructor} from './graph_runner_factory_api';
 import {NodeCanvas} from './node_canvas';
+import {isProfileEnabled, profileNow, recordPhase} from './node_profile';
 import {WasmModule} from './wasm_module';
 
 // Subset of the wasm bridge the Node-side image-input shim needs. The full
@@ -171,14 +172,23 @@ function installImageInputShim(
               `${source.data.length} bytes, need ${expectedLen} for ` +
               `${width}x${height} RGBA.`);
         }
+        const profiling = isProfileEnabled();
+        const tMalloc = profiling ? profileNow() : 0;
         const dataPtr = wasmBridge._malloc(expectedLen);
+        if (profiling) recordPhase('shim.malloc', tMalloc);
         try {
+          const tCopy = profiling ? profileNow() : 0;
           wasmBridge.HEAPU8.set(
               source.data.subarray(0, expectedLen), dataPtr);
+          if (profiling) recordPhase('shim.heapCopy', tCopy);
+          const tPush = profiling ? profileNow() : 0;
           wasmBridge._addRgbaImageToInputStream(
               dataPtr, width, height, streamNamePtr, timestamp);
+          if (profiling) recordPhase('shim.wasmPush', tPush);
         } finally {
+          const tFree = profiling ? profileNow() : 0;
           wasmBridge._free(dataPtr);
+          if (profiling) recordPhase('shim.free', tFree);
         }
       };
 }

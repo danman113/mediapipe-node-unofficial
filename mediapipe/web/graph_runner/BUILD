@@ -146,6 +146,17 @@ ts_library(
     ],
 )
 
+# Opt-in per-frame profiling buckets for the Node bundle. No-op unless
+# `setProfileEnabled(true)` is called or `MEDIAPIPE_NODE_PROFILE=1` is set.
+ts_library(
+    name = "node_profile",
+    srcs = [
+        "node_profile.ts",
+    ],
+    allow_unoptimized_namespaces = True,
+    visibility = ["//mediapipe/tasks:internal"],
+)
+
 # fs-backed counterpart to `createMediaPipeLib`.
 ts_library(
     name = "node_module_loader",
@@ -157,6 +168,7 @@ ts_library(
     deps = [
         ":graph_runner_factory_api",
         ":node_canvas",
+        ":node_profile",
         ":wasm_module_private",
     ],
 )
