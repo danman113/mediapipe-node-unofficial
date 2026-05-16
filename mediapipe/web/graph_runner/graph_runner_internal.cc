@@ -31,8 +31,11 @@
 #include "mediapipe/framework/packet.h"
 #include "mediapipe/framework/port/parse_text_proto.h"
 #include "mediapipe/framework/timestamp.h"
+#include "libyuv/convert_argb.h"
+#include "libyuv/video_common.h"
 #include "mediapipe/tasks/cc/core/mediapipe_builtin_op_resolver.h"
 #include "mediapipe/tasks/cc/core/model_resources_cache.h"
+#include "mediapipe/web/graph_runner/node_inference_config.h"
 
 namespace mediapipe {
 namespace web {
@@ -335,6 +338,59 @@ EMSCRIPTEN_KEEPALIVE void setAutoRenderToScreen(bool enabled) {
 
 EMSCRIPTEN_KEEPALIVE void registerModelResourcesGraphService() {
   GraphRunnerState::Get().RequestModelResourcesCacheService();
+}
+
+// Override the XNNPack interpreter thread count read by
+// `inference_interpreter_delegate_runner.cc`. Must be called *before*
+// `_changeBinaryGraph` so the inference calculator's first
+// `SetNumThreads` sees the override. Pass <=0 to revert to the default
+// (4 under `__EMSCRIPTEN_PTHREADS__`). Useful for fork-pool callers who
+// want to tune threads-per-fork.
+EMSCRIPTEN_KEEPALIVE void setNodeXnnpackNumThreads(int n) {
+  mediapipe::web::SetNodeXnnpackNumThreadsOverride(n);
+}
+
+// YUV → RGBA conversion via libyuv. JS-side `decodeYuvBuffer` plumbs the
+// detector's wasm heap into here so the conversion runs as SIMD-vectorized
+// native code inside wasm (way faster than a pure-JS conversion loop, on
+// the order of 0.5-1ms for 720p vs 10-30ms in JS).
+//
+// `fourcc` follows libyuv's FourCC scheme:
+//   0x3231564E = "NV12" (Y plane + interleaved UV; ffmpeg default for h264 decode)
+//   0x30323449 = "I420" (Y, U, V planar; common from FFmpeg `-pix_fmt yuv420p`)
+//
+// Plane stride args mirror libyuv's conventions:
+//   - NV12: y_stride = Y row stride, u_stride = UV interleaved row stride
+//           (= width for 4:2:0), v_plane/v_stride unused (pass nullptr/0).
+//   - I420: y_stride = width, u_stride = v_stride = width/2.
+//
+// `rgba_out` must point to `width * height * 4` bytes, byte order R,G,B,A
+// (matches what node-canvas's `ctx.getImageData` returns and what
+// `_addRgbaImageToInputStream` expects).
+EMSCRIPTEN_KEEPALIVE int yuvToRgba(const uint8_t* y_plane, int y_stride,
+                                    const uint8_t* u_plane, int u_stride,
+                                    const uint8_t* v_plane, int v_stride,
+                                    int width, int height, int fourcc,
+                                    uint8_t* rgba_out) {
+  if (width <= 0 || height <= 0) return -1;
+  const int rgba_stride = width * 4;
+  switch (fourcc) {
+    case libyuv::FOURCC_NV12:
+      // libyuv's *ABGR functions emit byte order R,G,B,A (Windows GDI
+      // labels this "ABGR" because little-endian uint32 reads it that way).
+      // That's what we actually need on the JS side.
+      return libyuv::NV12ToABGR(y_plane, y_stride, u_plane, u_stride,
+                                rgba_out, rgba_stride, width, height);
+    case libyuv::FOURCC_NV21:
+      return libyuv::NV21ToABGR(y_plane, y_stride, u_plane, u_stride,
+                                rgba_out, rgba_stride, width, height);
+    case libyuv::FOURCC_I420:
+      return libyuv::I420ToABGR(y_plane, y_stride, u_plane, u_stride,
+                                v_plane, v_stride, rgba_out, rgba_stride,
+                                width, height);
+    default:
+      return -2;  // unsupported fourcc
+  }
 }
 
 // Stubs for the GL-texture image input path. The Node bundle replaces

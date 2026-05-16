@@ -21,6 +21,24 @@ import {createMediaPipeLibNode} from '../../../web/graph_runner/node_module_load
 
 import type {HandLandmarkerOptions} from '../../../tasks/web/vision/hand_landmarker/hand_landmarker_options';
 
+/** Node-only options layered on top of the upstream HandLandmarkerOptions. */
+export interface HandLandmarkerNodeOptions extends HandLandmarkerOptions {
+  /**
+   * XNNPack thread count for inference. Defaults to 4. Set to 1 for
+   * single-thread mode (useful when running many forks in a worker pool —
+   * each fork wants fewer threads to avoid oversubscribing CPU cores).
+   * <=0 means "use the runtime default" (4).
+   */
+  numThreads?: number;
+}
+
+// The setter is exported from the C++ bridge as `_setNodeXnnpackNumThreads`.
+// Declared as an optional method so older WASM builds without this symbol
+// still type-check (we just skip the call).
+interface WasmModuleWithThreadOverride {
+  _setNodeXnnpackNumThreads?: (n: number) => void;
+}
+
 interface NodeFs {
   readFileSync(path: string): Uint8Array;
 }
@@ -41,7 +59,7 @@ function loadFs(): NodeFs {
  */
 export async function createHandLandmarker(
     wasmFileset: WasmFileset,
-    options: HandLandmarkerOptions,
+    options: HandLandmarkerNodeOptions,
     ): Promise<HandLandmarker> {
   // Pre-resolve modelAssetPath to a Buffer so task_runner stays browser-pure.
   const baseOptions = options.baseOptions ? {...options.baseOptions} : {};
@@ -51,7 +69,10 @@ export async function createHandLandmarker(
         baseOptions.modelAssetPath as string);
     delete (baseOptions as {modelAssetPath?: string}).modelAssetPath;
   }
-  const resolvedOptions: HandLandmarkerOptions = {...options, baseOptions};
+  // numThreads is a Node-only knob; strip before forwarding to the upstream
+  // HandLandmarker which doesn't know it.
+  const {numThreads, ...upstreamOptions} = options;
+  const resolvedOptions: HandLandmarkerOptions = {...upstreamOptions, baseOptions};
 
   const canvas = new NodeCanvas();
   const handLandmarker = await createMediaPipeLibNode(
@@ -60,6 +81,17 @@ export async function createHandLandmarker(
       wasmFileset.wasmBinaryPath.toString(),
       canvas,
   );
+  // Apply numThreads BEFORE setOptions — the upstream call triggers graph
+  // initialization which constructs the TFLite Interpreter, and SetNumThreads
+  // is read at that point. Setting after setOptions would be a no-op.
+  if (numThreads != null && numThreads > 0) {
+    // tslint:disable-next-line:no-any
+    const mod = (handLandmarker as any).graphRunner?.wasmModule as
+        WasmModuleWithThreadOverride | undefined;
+    if (mod && typeof mod._setNodeXnnpackNumThreads === 'function') {
+      mod._setNodeXnnpackNumThreads(numThreads);
+    }
+  }
   await handLandmarker.setOptions(resolvedOptions);
   return handLandmarker;
 }

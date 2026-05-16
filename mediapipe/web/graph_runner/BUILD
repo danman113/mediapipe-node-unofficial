@@ -12,6 +12,7 @@ cc_library(
     visibility = ["//mediapipe/tasks:internal"],
     alwayslink = True,
     deps = [
+        ":node_inference_config_cc",
         "//mediapipe/framework:calculator_cc_proto",
         "//mediapipe/framework:calculator_framework",
         "//mediapipe/framework/formats:image",
@@ -22,7 +23,22 @@ cc_library(
         "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/log:absl_log",
         "@com_google_absl//absl/status",
+        # libyuv for the YUV→RGBA conversion exposed via `_yuvToRgba`. Already
+        # an indirect dep through `formats/image:yuv_image`; named explicitly
+        # so the include of `libyuv/convert_argb.h` resolves.
+        "@libyuv",
     ],
+)
+
+# Process-wide knobs the Node JS API flips before graph init (e.g. XNNPack
+# thread-count override). Linked by both the bridge above and by the
+# inference calculator runner so calculator init can read what JS set.
+# Portable — getters return -1 on native builds where JS never calls in.
+cc_library(
+    name = "node_inference_config_cc",
+    srcs = ["node_inference_config.cc"],
+    hdrs = ["node_inference_config.h"],
+    visibility = ["//visibility:public"],
 )
 
 package(default_visibility = [

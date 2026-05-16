@@ -39,6 +39,10 @@
 #include "tensorflow/lite/interpreter_builder.h"
 #include "tensorflow/lite/util.h"
 
+#if defined(__EMSCRIPTEN_PTHREADS__)
+#include "mediapipe/web/graph_runner/node_inference_config.h"
+#endif
+
 namespace mediapipe {
 
 namespace {
@@ -303,7 +307,15 @@ CreateInferenceInterpreterDelegateRunner(
 #else
   int actual_num_threads = interpreter_num_threads;
 #if defined(__EMSCRIPTEN_PTHREADS__)
-  if (actual_num_threads <= 0) actual_num_threads = 4;
+  // JS-side override via setNodeXnnpackNumThreads(n) wins over the proto.
+  // Lets fork-pool callers tune threads-per-fork without baking it into the
+  // calculator graph config. -1 means "no override".
+  const int js_override = ::mediapipe::web::GetNodeXnnpackNumThreadsOverride();
+  if (js_override > 0) {
+    actual_num_threads = js_override;
+  } else if (actual_num_threads <= 0) {
+    actual_num_threads = 4;
+  }
 #endif
   interpreter_builder.SetNumThreads(actual_num_threads);
 #endif  // __EMSCRIPTEN__ && !__EMSCRIPTEN_PTHREADS__

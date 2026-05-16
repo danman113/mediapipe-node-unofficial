@@ -139,6 +139,27 @@ cc_test(
     ],
 )
 
+# Native single-thread perf bench. Used by the @danman113/mediapipe-node Tier 9
+# scoping work to compare native CPU inference against WASM-pthreads inference.
+#
+# bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 \
+#   //mediapipe/tasks/c/vision/hand_landmarker:native_perf_bench
+# ./bazel-bin/.../native_perf_bench <model.task> <image.jpg> [warmup] [runs]
+cc_binary(
+    name = "native_perf_bench",
+    srcs = ["native_perf_bench.cc"],
+    tags = [
+        "manual",
+        "nobuilder",
+        "notap",
+    ],
+    deps = [
+        ":hand_landmarker_lib",
+        "//mediapipe/tasks/c/core:base_options",
+        "//mediapipe/tasks/c/vision/core:image",
+    ],
+)
+
 # bazel build -c opt --linkopt -s --strip always --define MEDIAPIPE_DISABLE_GPU=1 \
 # //mediapipe/tasks/c/vision/hand_landmarker:libhand_landmarker.so
 cc_binary(

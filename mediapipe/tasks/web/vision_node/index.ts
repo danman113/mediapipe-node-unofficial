@@ -16,7 +16,12 @@
 
 import {FilesetResolverNode as FilesetResolverNodeImpl} from './fileset_resolver_node';
 import {createHandLandmarker as createHandLandmarkerImpl} from './hand_landmarker_node';
-import {decodeImageBuffer as decodeImageBufferImpl} from './image_adapter';
+import {
+  createImageData as createImageDataImpl,
+  decodeImageBuffer as decodeImageBufferImpl,
+  decodeYuvBuffer as decodeYuvBufferImpl,
+} from './image_adapter';
+export type {YuvFormat} from './image_adapter';
 import {
   getProfileStats as getProfileStatsImpl,
   isProfileEnabled as isProfileEnabledImpl,
@@ -34,11 +39,14 @@ export type {
   Landmark,
   NormalizedLandmark,
 } from '../../../tasks/web/vision/hand_landmarker/hand_landmarker';
+export type {HandLandmarkerNodeOptions} from './hand_landmarker_node';
 
 // tslint:disable:enforce-comments-on-exported-symbols
 export const FilesetResolver = FilesetResolverNodeImpl;
 export const createHandLandmarker = createHandLandmarkerImpl;
 export const decodeImageBuffer = decodeImageBufferImpl;
+export const createImageData = createImageDataImpl;
+export const decodeYuvBuffer = decodeYuvBufferImpl;
 
 // Profile API (no-op unless enabled via setProfileEnabled(true) or the
 // MEDIAPIPE_NODE_PROFILE=1 env var). Exposes timings for the per-frame

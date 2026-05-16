@@ -15,7 +15,7 @@
     "./wasm/vision_wasm_internal.wasm": "./wasm/vision_wasm_internal.wasm"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "peerDependencies": {
     "canvas": "^2.11.0",

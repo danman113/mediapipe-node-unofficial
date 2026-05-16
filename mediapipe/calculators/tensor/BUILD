@@ -780,6 +780,10 @@ cc_library_with_tflite(
         "//mediapipe/framework/formats:tensor",
         "//mediapipe/framework/port:ret_check",
         "//mediapipe/framework/port:status",
+        # JS-side override hook (@danman113/mediapipe-node Tier 11). Only the
+        # __EMSCRIPTEN_PTHREADS__ branch references it; native builds compile
+        # the header out. Header-only header avoids non-emscripten link cost.
+        "//mediapipe/web/graph_runner:node_inference_config_cc",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

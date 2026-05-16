@@ -55,7 +55,11 @@ function parseArgs(argv) {
     model: DEFAULT_MODEL,
     image: DEFAULT_IMAGE,
     test: 'smoke',   // 'smoke' | 'perf'
-    relaxedSimd: false,
+    // relaxed-simd is on by default; --no-relaxed-simd disables for A/B testing.
+    // Package.json requires Node 22+, where V8 has relaxed-simd opcodes on by
+    // default. Local dev on Node <22 still needs --experimental-wasm-relaxed-simd
+    // when running test scripts (handled below).
+    relaxedSimd: true,
     lto: false,
     minimalRuntime: false,
     // Extra args forwarded verbatim to the test script (e.g. --runs=200).
@@ -71,13 +75,25 @@ function parseArgs(argv) {
     else if (arg.startsWith('--image=')) opts.image = arg.slice(8);
     else if (arg.startsWith('--test=')) opts.test = arg.slice(7);
     else if (arg === '--relaxed-simd') opts.relaxedSimd = true;
+    else if (arg === '--no-relaxed-simd') opts.relaxedSimd = false;
     else if (arg === '--lto') opts.lto = true;
     else if (arg === '--minimal-runtime') opts.minimalRuntime = true;
     else if (arg === '-h' || arg === '--help') {
-      console.log(
-          'Usage: node dev_smoke.js [--no-build] [--no-install] ' +
-          '[--keep-going] [--target=…] [--workdir=…] [--model=…] [--image=…]\n' +
-          '       [--test=smoke|perf] [-- <extra args for test script>]');
+      console.log([
+        'Usage: node dev_smoke.js [options] [-- <extra args for test script>]',
+        '',
+        '  --no-build           skip bazel build',
+        '  --no-install         skip npm install of local-pkg',
+        '  --keep-going         continue past failing steps',
+        '  --target=<label>     bazel target (default: vision_node_pkg)',
+        '  --workdir=<dir>      smoke workdir (default: ./smoke)',
+        '  --model=<path>       model file (resolved against workdir)',
+        '  --image=<path>       image file (resolved against workdir)',
+        '  --test=smoke|perf    which script to run (default: smoke)',
+        '  --no-relaxed-simd    disable relaxed-simd (default: on; needs Node 22+)',
+        '  --lto                add `-flto` (currently blocked by emsdk FROZEN_CACHE)',
+        '  --minimal-runtime    add `-sMINIMAL_RUNTIME=2` (blocked by libGL dep today)',
+      ].join('\n'));
       process.exit(0);
     } else if (arg === '--') {
       // Everything after '--' is forwarded to the test script.
